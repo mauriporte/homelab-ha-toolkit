@@ -1,0 +1,12 @@
+# personal config
+ha/servers.json
+ha/tv_remote.json
+# generated / data
+*.m3u
+iptv_data/
+iptv_epg/
+iptv_out/
+*.jsonl
+iptv_final.json
+iptv/epg-extra/sources.json
+__pycache__/

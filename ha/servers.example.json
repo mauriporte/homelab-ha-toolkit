@@ -1,0 +1,28 @@
+{
+  "dashboard": {"url_path": "dashboard-servers", "title": "Servers", "icon": "mdi:server", "theme": null},
+  "rename_switches": true,
+  "labels": {"summary": "Summary", "storage": "Storage", "network": "Network", "apps": "Apps", "usage": "Usage per app",
+             "net_title": "Network (last 3 h)", "down": "Download", "up": "Upload", "uptime": "Up since",
+             "load": "Load", "stop": "Stop {}?", "state": "State"},
+  "servers": [
+    {
+      "title": "NAS",
+      "path": "nas",
+      "icon": "mdi:nas",
+      "portainer_host": "192.168.1.20",
+      "cpu": "sensor.192_168_1_20_uso_de_cpu",
+      "ram": ["sensor.192_168_1_20_uso_de_memoria", "sensor.192_168_1_20_uso_de_memoria_2"],
+      "temp": "sensor.192_168_1_20_temperatura_de_package_id_0",
+      "uptime": "sensor.192_168_1_20_tiempo_de_funcionamiento",
+      "load": "sensor.192_168_1_20_carga_de_la_cpu",
+      "disks": [["sensor.192_168_1_20_uso_de_disco_de_data", "/DATA"]],
+      "disk_temp": null,
+      "net": ["sensor.192_168_1_20_eth0_rx", "sensor.192_168_1_20_eth0_tx"],
+      "apps": [
+        ["jellyfin", "Jellyfin", "https://cdn.jsdelivr.net/gh/selfhst/icons/png/jellyfin.png"],
+        ["portainer", "Portainer", "https://cdn.jsdelivr.net/gh/selfhst/icons/png/portainer.png"]
+      ],
+      "extra_containers": ["jellyfin-db"]
+    }
+  ]
+}

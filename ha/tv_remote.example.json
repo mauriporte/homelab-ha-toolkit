@@ -1,0 +1,16 @@
+{
+  "dashboard": "dashboard-remotes",
+  "view": 0,
+  "name": "Living room TV",
+  "remote": "remote.living_room_tv",
+  "media_player": "media_player.living_room_tv",
+  "apps": [
+    ["Spotify", "mdi:spotify", "com.spotify.tv.android"],
+    ["Netflix", "mdi:netflix", "com.netflix.ninja"],
+    ["YouTube", "mdi:youtube", "com.google.android.youtube.tv"],
+    ["Kodi", "mdi:kodi", "org.xbmc.kodi"],
+    ["Jellyfin", "mdi:jellyfish", "org.jellyfin.androidtv"],
+    ["Stremio", "mdi:movie-open-play", "com.stremio.one"]
+  ],
+  "labels": {"back": "Back", "home": "Home"}
+}
