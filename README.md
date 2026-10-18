@@ -58,7 +58,9 @@ Lessons learned (they cost time):
 - Set Threadfin's `httpThreadfinDomain`; otherwise it writes its Docker-internal IP into the playlist.
 - Threadfin reads the buffer type **per playlist** (`files.m3u.<id>.buffer`); the global setting alone leaves it half-on.
 - Threadfin can crash (`concurrent map read and map write`) when many streams start at once — keep
-  tvheadend's `max_streams` at 2 while scanning.
+  tvheadend's `max_streams` at 2 while scanning, and measure start times one channel at a time.
+- The ffmpeg pipe for tvheadend uses short probing (`-analyzeduration 1000000 -probesize 500000 -fflags +nobuffer`):
+  by default ffmpeg analyses ~5 s of input before writing anything; this starts channels 0.8–1.3 s faster.
 - In tvheadend access entries, `change_profiles` with an empty profile list denies every subscription.
 
 ## License

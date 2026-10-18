@@ -1,7 +1,7 @@
 # Time how long each channel takes to start through Threadfin (the path Jellyfin/Kodi use).
 # "Start" = first 64 KB of video data received. User rule (17/10): > 5 s = removed.
 # A channel over the limit is retried once and only marked slow if both tries exceed it.
-# 4 at a time (Threadfin has 6 tuners; .20 must not be overloaded). Resumable: results appended to a .jsonl.
+# One channel at a time with a 2 s pause: several at once made Threadfin reject streams and even crash. Resumable: results appended to a .jsonl.
 import concurrent.futures as cf, json, os, re, sys, time, requests
 
 TF = os.environ.get("THREADFIN", "localhost:34400")  # host:port of Threadfin
@@ -34,6 +34,7 @@ def start_time(url):
 
 
 def test(c):
+    time.sleep(2)
     tid, name, url = c
     t1 = start_time(url)
     t2 = start_time(url) if (t1 is None or t1 > LIMIT) else None
@@ -44,7 +45,7 @@ def test(c):
 
 todo = [c for c in chans if c[2] not in done]
 print(f"channels {len(chans)} | already tested {len(done)} | to test {len(todo)}", flush=True)
-with cf.ThreadPoolExecutor(4) as ex, open(OUT, "a", encoding="utf-8") as f:
+with cf.ThreadPoolExecutor(1) as ex, open(OUT, "a", encoding="utf-8") as f:
     for i, r in enumerate(ex.map(test, todo), 1):
         f.write(json.dumps(r, ensure_ascii=False) + "\n"); f.flush()
         if i % 50 == 0:

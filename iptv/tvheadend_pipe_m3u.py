@@ -15,7 +15,8 @@ lines, n = [], 0
 for line in src.splitlines():
     if line.startswith("http"):
         url = re.sub(r"^http://[^/]+", f"http://{TF}", line.strip())  # Threadfin may write its Docker IP
-        line = f"pipe://{FFMPEG} -loglevel fatal -i {url} -c copy -f mpegts pipe:1"
+        # short probing: ffmpeg otherwise analyses ~5 s of input before writing anything (measured: 0.8–1.3 s faster start)
+        line = f"pipe://{FFMPEG} -loglevel fatal -analyzeduration 1000000 -probesize 500000 -fflags +nobuffer -i {url} -c copy -f mpegts pipe:1"
         n += 1
     lines.append(line)
 assert n, "no channels in Threadfin's playlist"
