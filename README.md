@@ -59,8 +59,17 @@ Lessons learned (they cost time):
 - Threadfin reads the buffer type **per playlist** (`files.m3u.<id>.buffer`); the global setting alone leaves it half-on.
 - Threadfin can crash (`concurrent map read and map write`) when many streams start at once — keep
   tvheadend's `max_streams` at 2 while scanning, and measure start times one channel at a time.
-- The ffmpeg pipe for tvheadend uses short probing (`-analyzeduration 1000000 -probesize 500000 -fflags +nobuffer`):
-  by default ffmpeg analyses ~5 s of input before writing anything; this starts channels 0.8–1.3 s faster.
+- The ffmpeg pipe for tvheadend uses short probing (`-analyzeduration 2000000 -probesize 1000000 -fflags +nobuffer`):
+  by default ffmpeg analyses ~5 s of input before writing anything. Going lower (1 s / 500 KB) was faster still, but
+  some channels intermittently started with **audio only** because the video stream had not been seen yet.
+- **Keep the pipe playlist file and tvheadend's muxes in sync.** Editing mux URLs through the API does not touch the
+  file; on the next restart tvheadend compares them, deletes every mux and service, and recreates them. Channels
+  survive but lose their services, names and numbers (Kodi plays nothing until a full rescan). If it happens, the
+  channels still keep their XMLTV link, whose id is Threadfin's channel number, which is also each new mux's
+  `channel_number`: re-attach channels to services by that number while the rescan runs.
+- After the start-time filter, check every channel for a real **video and audio** stream (ffprobe through
+  tvheadend, a few tries each): some streams open fast but carry only one of the two.
+- Measure again later: start times vary with the time of day, and a second pass brought back ~20% of the "slow" ones.
 - In tvheadend access entries, `change_profiles` with an empty profile list denies every subscription.
 
 ## License
