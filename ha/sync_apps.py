@@ -1,7 +1,8 @@
 # Keep the apps grids of a servers dashboard (built by servers_dashboard.py, possibly edited by hand since) in sync with
 # the containers Home Assistant's Portainer integration knows: every new container gets a button (icon from selfh.st,
 # guessed from the container name; Docker icon if none fits) and a row in the usage table. Containers listed in a
-# server's "extra_containers" or "hidden" are left out (databases, sidecars). Nothing else on the dashboard changes.
+# server's "extra_containers" or "hidden" are left out (databases, sidecars). Buttons are kept in alphabetical order.
+# Nothing else on the dashboard changes.
 # Usage: python sync_apps.py servers.json [--dashboard url_path] [--apply]      (without --apply: show what would change)
 import copy, json, re, sys, urllib.request
 from ha_ws import call
@@ -90,9 +91,12 @@ for srv in CFG["servers"]:
     exists = lambda m: states.get(m["switch"], {}).get("state") not in (None, "unavailable", "unknown")  # gone containers stay "unavailable"
     new = [(name, m) for name, m in sorted(host.items())
            if m.get("switch") and m["switch"] not in shown and name not in hidden and exists(m)]
-    if not new:
-        print(srv["path"], ": up to date"); continue
     pairs = [pe[i:i + 2] for i in range(0, len(pe), 2)]
+    names = {}  # switch -> label shown on the button (new ones get theirs below)
+    name_of = lambda pair: (names.get(app_switch(pair[0])) or states.get(app_switch(pair[0]), {}).get("attributes", {})
+                            .get("friendly_name", app_switch(pair[0]))).casefold()
+    if not new and [name_of(p) for p in pairs] == sorted(name_of(p) for p in pairs):
+        print(srv["path"], ": up to date"); continue
     rows = None
     if table:
         m = re.search(r"\{% set rows = (\[.*?\]) %\}", table["content"], re.S)
@@ -111,8 +115,12 @@ for srv in CFG["servers"]:
             if conf:
                 conf["text"] = re.sub(r"(¿?\S+ ).*?(\?)$", lambda x: x.group(1) + label + x.group(2), conf["text"])
         pairs.append(pair)
+        names[sw] = label
         if rows is not None and m.get("memory_usage"):
             rows.append({"n": label, "s": m.get("container_state", ""), "c": m.get("cpu_usage_total", ""), "m": m["memory_usage"]})
+    pairs.sort(key=name_of)  # buttons in alphabetical order
+    if not new:
+        print(srv["path"], ": sorted alphabetically")
     # transparent filler keeps every button the same width on a short last line (hidden with the apps group)
     group_vis = [v for v in pe[0].get("visibility", []) if v.get("entity", "").startswith("input_boolean.")]
     blank = {"type": "markdown", "content": " ", "visibility": group_vis,
