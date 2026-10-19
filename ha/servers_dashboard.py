@@ -98,43 +98,81 @@ def usage_table(srv):
     return {"type": "markdown", "content": tpl, "grid_options": {"columns": "full"}}
 
 
-def collapsible(path, key, heading, icon, cards, **section):
-    """Section whose heading collapses it (input_boolean per section, created on first run)."""
+ROWS = 4                       # height of the top row in grid rows (4 × 56 px + 3 gaps = 248 px)
+ROW_PX = ROWS * 56 + (ROWS - 1) * 8
+APPS_PER_LINE = 12             # 3-column app buttons in the 36-column (75 %) apps area
+
+
+def height(px):
+    """card-mod style that fixes a card's height (needs card-mod from HACS; without it cards keep their own size)."""
+    return {"style": f"ha-card {{ height: {px}px !important; justify-content: center; }}"}
+
+
+def group(path, key, heading, icon, cols):
+    """Collapsible group: heading (tap or chevron toggles an input_boolean, created on first run) + visibility rule."""
     flag = f"input_boolean.servers_{path}_{key}"
     if flag not in states:
         call(type="input_boolean/create", name=f"Servers {path} {key}", icon="mdi:chevron-down", initial=True)
-    shown = {"condition": "state", "entity": flag, "state": "on"}
     chev = lambda ic, st: {"type": "entity", "entity": flag, "show_state": False, "show_icon": True, "icon": ic,
                            "color": "primary", "tap_action": {"action": "toggle"},
                            "visibility": [{"condition": "state", "entity": flag, "state": st}]}
-    head = {"type": "heading", "heading": heading, "icon": icon,
+    head = {"type": "heading", "heading": heading, "icon": icon, "grid_options": {"columns": cols},
             "tap_action": {"action": "perform-action", "perform_action": "input_boolean.toggle", "target": {"entity_id": flag}},
             "badges": [chev("mdi:chevron-up", "on"), chev("mdi:chevron-down", "off")]}
-    return dict({"type": "grid", "cards": [head] + [dict(c, visibility=c.get("visibility", []) + [shown]) for c in cards]},
-                **section)
+    return head, [{"condition": "state", "entity": flag, "state": "on"}]
+
+
+def blank(vis):
+    return {"type": "markdown", "content": " ", "visibility": vis,
+            "card_mod": {"style": "ha-card { background: none !important; border: none !important; box-shadow: none !important; }"}}
 
 
 def server_view(srv):
     p = srv["path"]
-    summary = [gauge(srv["cpu"], "CPU"), gauge(pick(srv["ram"]), "RAM")]
-    if srv.get("temp"):
-        summary.append(gauge(srv["temp"], "Temp.", "temp"))
-    summary += [{"type": "tile", "entity": srv[k], "name": TXT[k], "grid_options": {"columns": 6}}
-                for k in ("uptime", "load") if srv.get(k)]
-    disks = [gauge(e, n, "disk", rows=5) for e, n in srv.get("disks", [])]  # 5 rows = network graph height
+    plain = lambda c: {k: v for k, v in c.items() if k != "grid_options"}
+    # top row, one full-width section: Summary (4 slots) | Storage (1 slot per disk) | Network (the rest)
+    disks = [gauge(e, n, "disk") for e, n in srv.get("disks", [])]
     if srv.get("disk_temp"):
-        disks.append(gauge(srv["disk_temp"], "Temp. disco", "temp", rows=5))
+        disks.append(gauge(srv["disk_temp"], "Temp. disco", "temp"))
+    slot = min(6, 36 // (4 + len(disks)))      # keep at least a quarter of the row for the network graph
+    sum_cols, disk_cols = 4 * slot, slot * len(disks)
+    net_cols = 48 - sum_cols - disk_cols
+    h_sum, v_sum = group(p, "summary", TXT["summary"], "mdi:gauge", sum_cols)
+    h_disk, v_disk = group(p, "storage", TXT["storage"], "mdi:harddisk", disk_cols)
+    h_net, v_net = group(p, "network", TXT["network"], "mdi:lan", net_cols)
+    gauges = [gauge(srv["cpu"], "CPU"), gauge(pick(srv["ram"]), "RAM")] + ([gauge(srv["temp"], "Temp.", "temp")] if srv.get("temp") else [])
+    tiles = [{"type": "tile", "entity": srv[k], "name": TXT[k], "vertical": True, "card_mod": height((ROW_PX - 8) // 2)}
+             for k in ("uptime", "load") if srv.get(k)]
+    summary = {"type": "horizontal-stack", "visibility": v_sum, "grid_options": {"columns": sum_cols, "rows": ROWS},
+               "cards": ([{"type": "vertical-stack", "cards": tiles}] if tiles else []) + [dict(plain(g), card_mod=height(ROW_PX)) for g in gauges]}
     rx, tx = srv["net"]
-    net = {"type": "history-graph", "title": TXT["net_title"], "hours_to_show": 3,
+    net = {"type": "history-graph", "title": TXT["net_title"], "hours_to_show": 3, "visibility": v_net,
            "entities": [{"entity": rx, "name": TXT["down"]}, {"entity": tx, "name": TXT["up"]}],
-           "grid_options": {"columns": "full", "rows": 5}}
+           "grid_options": {"columns": net_cols, "rows": ROWS}}   # directly in the grid: a history-graph only resizes here
+    top = {"type": "grid", "column_span": 4, "cards": [h_sum, h_disk, h_net, summary,
+           *[dict(d, visibility=v_disk, grid_options={"columns": slot, "rows": ROWS}) for d in disks], net]}
+
+    # apps (75 %) | usage table (25 %, no fixed rows so it grows instead of scrolling)
+    h_apps, v_apps = group(p, "apps", TXT["apps"], "mdi:apps", 36)
+    h_use, v_use = group(p, "usage", TXT["usage"], "mdi:table", 12)
+    pairs = app_cards(srv)
+    pairs = [pairs[i:i + 2] for i in range(0, len(pairs), 2)]   # each app = running/stopped pair, one visible
+    lines = []
+    for i in range(0, len(pairs), APPS_PER_LINE):
+        chunk = pairs[i:i + APPS_PER_LINE]
+        cards = [dict(plain(c), visibility=c["visibility"] + v_apps) for pair in chunk for c in pair]
+        lines.append({"type": "horizontal-stack", "cards": cards + [blank(v_apps) for _ in range(APPS_PER_LINE - len(chunk))]})
+    table = dict(usage_table(srv), visibility=v_use, grid_options={"columns": 12},
+                 card_mod={"style": {"ha-markdown$": "td, th { white-space: nowrap; padding: 4px 6px !important; } table { width: 100%; }"}})
+    apps = {"type": "grid", "column_span": 4,
+            "cards": [h_apps, h_use, {"type": "vertical-stack", "cards": lines, "grid_options": {"columns": 36}}, table]}
+
+    title = {"type": "heading", "heading": srv["title"], "icon": srv.get("icon", "mdi:server"), "grid_options": {"columns": "full"}}
+    if srv.get("web_url"):
+        title["badges"] = [{"type": "button", "text": TXT.get("open_web", "Open web"), "icon": "mdi:open-in-new",
+                            "tap_action": {"action": "url", "url_path": srv["web_url"]}}]
     view = {"title": srv["title"], "path": p, "icon": srv.get("icon", "mdi:server"), "type": "sections", "max_columns": 4,
-            "sections": [
-                collapsible(p, "summary", TXT["summary"], "mdi:gauge", summary),
-                collapsible(p, "storage", TXT["storage"], "mdi:harddisk", disks),
-                collapsible(p, "network", TXT["network"], "mdi:lan", [net]),
-                collapsible(p, "apps", TXT["apps"], "mdi:apps", app_cards(srv), column_span=4),
-                collapsible(p, "usage", TXT["usage"], "mdi:table", [usage_table(srv)], column_span=4)]}
+            "sections": [{"type": "grid", "column_span": 4, "cards": [title]}, top, apps]}
     if DASH.get("theme"):
         view["theme"] = DASH["theme"]
     return view

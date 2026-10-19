@@ -14,7 +14,7 @@ Requirements: `pip install websocket-client`, plus `HA_URL` (e.g. `http://homeas
 
 | Script | What it builds |
 | --- | --- |
-| `servers_dashboard.py servers.json` | A **ZimaOS/CasaOS-style "Servers" dashboard**: one view per server with CPU/RAM/temperature gauges, disk gauges, a 3-hour network graph, an **apps grid** (container icons in colour when running, grey when stopped; tap to start/stop, with a confirmation before stopping) and a per-app CPU/RAM table sorted by memory. Every section is collapsible. Host metrics from the **Glances** or **System Monitor** integrations, containers from the **Portainer** integration. |
+| `servers_dashboard.py servers.json` | A **ZimaOS/CasaOS-style "Servers" dashboard**, one view per server: a title row (optional "Open web" button via `web_url`); one row with **Summary** (uptime over load, CPU/RAM/temperature gauges), **Storage** (a gauge per disk) and a 3-hour **Network** graph, all the same height; then the **apps grid** (75 %: container icons in colour when running, grey when stopped; tap to start/stop, with a confirmation before stopping) beside a per-app CPU/RAM **table** (25 %, grows to fit, sorted by memory). Every group is collapsible. Equal heights need **card-mod** (HACS → Frontend); without it the layout still works, only heights differ. Host metrics from the **Glances** or **System Monitor** integrations, containers from the **Portainer** integration. |
 | `android_tv_remote.py tv_remote.json` | A collapsible **Android/Google TV remote** section: status tile, D-pad, volume, play/pause, power and one-tap app launchers (by package name), using the official Android TV Remote integration. |
 | `ha_ws.py` | The tiny WebSocket client both scripts use: `from ha_ws import call; call(type="get_states")`. |
 

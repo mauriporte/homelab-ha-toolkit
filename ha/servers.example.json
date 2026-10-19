@@ -3,12 +3,13 @@
   "rename_switches": true,
   "labels": {"summary": "Summary", "storage": "Storage", "network": "Network", "apps": "Apps", "usage": "Usage per app",
              "net_title": "Network (last 3 h)", "down": "Download", "up": "Upload", "uptime": "Up since",
-             "load": "Load", "stop": "Stop {}?", "state": "State"},
+             "load": "Load", "stop": "Stop {}?", "state": "State", "open_web": "Open web"},
   "servers": [
     {
       "title": "NAS",
       "path": "nas",
       "icon": "mdi:nas",
+      "web_url": "https://nas.example.com/",
       "portainer_host": "192.168.1.20",
       "cpu": "sensor.192_168_1_20_uso_de_cpu",
       "ram": ["sensor.192_168_1_20_uso_de_memoria", "sensor.192_168_1_20_uso_de_memoria_2"],
