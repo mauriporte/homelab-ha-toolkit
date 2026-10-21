@@ -91,7 +91,8 @@ for srv in CFG["servers"]:
     host = PMAP.get(srv["portainer_host"], {})
     exists = lambda m: states.get(m["switch"], {}).get("state") not in (None, "unavailable", "unknown")  # gone containers stay "unavailable"
     new = [(name, m) for name, m in sorted(host.items())
-           if m.get("switch") and m["switch"] not in shown and name not in hidden and exists(m)]
+           if m.get("switch") and m["switch"] not in shown and name not in hidden and exists(m)
+           and not name.endswith("-pre-casaos")]  # stopped copies kept for rollback after a CasaOS conversion
     pairs = [pe[i:i + 2] for i in range(0, len(pe), 2)]
     # deleted containers: their switch is gone from Portainer, or unavailable while the server answers for the others
     # (a server that is down makes every container unavailable: then nothing is removed)
@@ -122,6 +123,12 @@ for srv in CFG["servers"]:
         pair = copy.deepcopy(pairs[0])  # same look as the existing buttons
         txt = json.dumps(pair).replace(app_switch(pairs[0][0]), sw).replace(pairs[0][0]["elements"][0]["image"], icon)
         pair = json.loads(txt)
+        menu = srv.get("app_menu")  # server name in the casaos_apps integration: ⋯ settings popup on CasaOS apps
+        has_menu = bool(menu) and call(type="casaos_apps/app", server=menu, container=name).get("success")
+        for c in pair:  # the copied button's ⋯ belongs to the other app
+            c["elements"] = [e for e in c["elements"] if e.get("type") != "custom:casaos-app-menu"]
+            if has_menu:
+                c["elements"].append({"type": "custom:casaos-app-menu", "server": menu, "container": name, "style": {"top": "10%", "left": "88%"}})
         for c in pair:  # stop confirmation names the new app
             conf = c["elements"][0].get("tap_action", {}).get("confirmation")
             if conf:
