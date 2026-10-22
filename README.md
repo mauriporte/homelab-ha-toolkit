@@ -20,6 +20,7 @@ Requirements: `pip install websocket-client`, plus `HA_URL` (e.g. `http://homeas
 | `ha_ws.py` | The tiny WebSocket client both scripts use: `from ha_ws import call; call(type="get_states")`. |
 
 Notes for the servers dashboard:
+- A server reached through another server's Portainer (a Portainer agent registered as an extra environment) sets `"portainer_host"` to that Portainer and `"portainer_endpoint"` to the environment's name; it defaults to `local`, the Portainer's own host.
 - The apps grid labels each button with the Portainer switch's name; with `"rename_switches": true` the
   script renames each container switch to your app label (only the display name).
 - On a Raspberry Pi, per-container RAM reads 0 unless the kernel has the memory cgroup enabled

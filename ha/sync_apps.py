@@ -44,15 +44,17 @@ def guess(container):
 
 def portainer_map():
     entries = {c["entry_id"]: c["title"] for c in call(type="config_entries/get")["result"] if c["domain"] == "portainer"}
-    devices = {d["id"]: d["name"] for d in call(type="config/device_registry/list")["result"]}
-    out = {}
+    devices = {d["id"]: d for d in call(type="config/device_registry/list")["result"]}
+    out = {}  # (Portainer host, environment) -> {container: {kind: entity}}; one Portainer can serve several hosts
     for e in call(type="config/entity_registry/list")["result"]:
         if e.get("config_entry_id") not in entries or e.get("disabled_by"):
             continue
         host = entries[e["config_entry_id"]].split("//")[-1].split(":")[0]
         kind = "switch" if e["entity_id"].startswith("switch.") else e.get("translation_key")
         if kind in ("switch", "cpu_usage_total", "memory_usage", "container_state"):
-            out.setdefault(host, {}).setdefault(devices.get(e.get("device_id")), {})[kind] = e["entity_id"]
+            dev = devices.get(e.get("device_id")) or {}
+            env = (devices.get(dev.get("via_device_id")) or {}).get("name") or "local"
+            out.setdefault((host, env), {}).setdefault(dev.get("name"), {})[kind] = e["entity_id"]
     return out
 
 
@@ -88,7 +90,7 @@ for srv in CFG["servers"]:
     pe = [c for line in stack["cards"] for c in line["cards"] if c.get("type") == "picture-elements"]
     shown = {app_switch(c) for c in pe}
     hidden = set(srv.get("extra_containers") or []) | set(srv.get("hidden") or [])
-    host = PMAP.get(srv["portainer_host"], {})
+    host = PMAP.get((srv["portainer_host"], srv.get("portainer_endpoint", "local")), {})
     exists = lambda m: states.get(m["switch"], {}).get("state") not in (None, "unavailable", "unknown")  # gone containers stay "unavailable"
     new = [(name, m) for name, m in sorted(host.items())
            if m.get("switch") and m["switch"] not in shown and name not in hidden and exists(m)
