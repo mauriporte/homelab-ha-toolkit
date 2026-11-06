@@ -1,8 +1,11 @@
 # Write the final M3U (working streams only, priority order, grouped) + the EPG grabber channel list + a summary.
-import collections, json, re, sys, html
+import collections, json, os, re, sys, html
 S = sys.argv[1]
+os.makedirs(S + "/iptv_out", exist_ok=True)
 F = json.load(open(S + "/iptv_final.json", encoding="utf-8"))
-P = {i: st for i, st, t in json.load(open(S + "/iptv_probe.json"))}
+# probe.py writes iptv_probe2_<mode>.json; iptv_probe.json wins when present (e.g. merged direct + proxy results)
+PROBE = next(f for f in (S + "/iptv_probe.json", S + "/iptv_probe2_direct.json") if os.path.exists(f))
+P = {i: st for i, st, t in json.load(open(PROBE))}
 logos = dict(re.findall(r'tvg-id="([^"@]+)(?:@[^"]*)?" tvg-logo="([^"]*)"', open(S + "/iptv_data/index.m3u", encoding="utf-8").read()))
 guides = collections.defaultdict(list)
 for g in json.load(open(S + "/iptv_data/guides.json", encoding="utf-8")):

@@ -11,6 +11,7 @@ os.makedirs(f"{W}/iptv_epg", exist_ok=True)
 get = lambda url, path: urllib.request.urlretrieve(url, path) and print("ok", path)
 for name in ("channels", "feeds", "streams", "guides", "categories", "countries", "languages", "blocklist", "logos"):
     get(f"https://iptv-org.github.io/api/{name}.json", f"{W}/iptv_data/{name}.json")
+get("https://iptv-org.github.io/iptv/index.m3u", f"{W}/iptv_data/index.m3u")  # logos for write_m3u.py
 for c in codes:
     try:
         get(f"https://epgshare01.online/epgshare01/epg_ripper_{c}.xml.gz", f"{W}/iptv_epg/es_{c}.xml.gz")

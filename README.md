@@ -73,6 +73,13 @@ Lessons learned (they cost time):
   tvheadend, a few tries each): some streams open fast but carry only one of the two.
 - Measure again later: start times vary with the time of day, and a second pass brought back ~20% of the "slow" ones.
 - In tvheadend access entries, `change_profiles` with an empty profile list denies every subscription.
+- Moving the stack to another server triggers the same mux wipe: rewriting the host inside the pipe playlist and
+  restarting tvheadend leaves every channel without a service. Regenerate the file and rescan instead.
+- Keep Threadfin's `buffer.size.kb` small (768): Threadfin fills the whole buffer before sending a byte, so 4096 KB
+  made low-bitrate channels (music, small local stations) take 30+ s to start, past tvheadend's 30 s timeout.
+- The iptv-org grabber can exhaust Node's default 4 GB heap (`JavaScript heap out of memory`, `guide.xml` stays 404):
+  give it `NODE_OPTIONS=--max-old-space-size=12288`. With that, 650 channels × 2 days took 11 minutes.
+- If epgshare01 refuses `fetch_data.py`'s downloads (403), epg-extra's cache folder holds the same country files.
 
 ## License
 

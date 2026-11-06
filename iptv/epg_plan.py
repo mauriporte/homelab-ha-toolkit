@@ -5,9 +5,10 @@
 #    each mapping the source's channel id -> the playlist tvg-id
 # (one source channel can feed several playlist channels, e.g. HD/SD variants)
 # Usage: iptv_epgplan.py <scratch> <ids.json>   (ids.json = list of tvg-ids that made the final list)
-import collections, html, json, sys
+import collections, html, json, os, sys
 
 S, IDS = sys.argv[1], sys.argv[2]
+os.makedirs(S + "/iptv_deploy/epg-extra", exist_ok=True)
 ids = json.load(open(IDS, encoding="utf-8"))
 F = {x["id"]: x for x in json.load(open(S + "/iptv_final.json", encoding="utf-8"))}
 guides = collections.defaultdict(list)
