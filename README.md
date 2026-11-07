@@ -47,6 +47,7 @@ from the epgshare01 country guides).
 | 8. Start-time check | `THREADFIN=host:34400 python start_time.py` — time to first 64 KB of video per channel (retry once), to drop slow channels |
 | 9. tvheadend input | `THREADFIN=host:34400 python tvheadend_pipe_m3u.py threadfin-pipe.m3u` — wraps each channel in `pipe://ffmpeg -c copy`, because tvheadend's own HTTP client fails on Threadfin's ffmpeg-buffered streams; point the IPTV automatic network at `file:///config/threadfin-pipe.m3u` |
 | 10. Scan and map | `TVH_URL=http://host:9981 TVH_USER=… TVH_PASS=… python tvheadend_scan_map.py --start` |
+| 11. Hide dead channels | `TVH_URL=… TVH_USER=… TVH_PASS=… python tvheadend_hide_dead.py [--dry-run]` — plays every channel through tvheadend (35 s limit), retries failures once, disables (not deletes) the ones that never start |
 
 Running `epg-extra` as a container (example):
 
@@ -79,6 +80,8 @@ Lessons learned (they cost time):
   made low-bitrate channels (music, small local stations) take 30+ s to start, past tvheadend's 30 s timeout.
 - The iptv-org grabber can exhaust Node's default 4 GB heap (`JavaScript heap out of memory`, `guide.xml` stays 404):
   give it `NODE_OPTIONS=--max-old-space-size=12288`. With that, 650 channels × 2 days took 11 minutes.
+- Rescan failed muxes before giving up on them (set `scan_state` to 1 for each mux with `scan_result` 2): two more passes
+  brought back 117 of 175. Likewise retry channels that fail to start: 72 of 74 first-try failures started on the second try.
 - If epgshare01 refuses `fetch_data.py`'s downloads (403), epg-extra's cache folder holds the same country files.
 
 ## `arr/` — Prowlarr
