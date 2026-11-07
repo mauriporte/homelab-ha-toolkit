@@ -81,6 +81,20 @@ Lessons learned (they cost time):
   give it `NODE_OPTIONS=--max-old-space-size=12288`. With that, 650 channels × 2 days took 11 minutes.
 - If epgshare01 refuses `fetch_data.py`'s downloads (403), epg-extra's cache folder holds the same country files.
 
+## `arr/` — Prowlarr
+
+`python3 prowlarr_find_indexers.py <prowlarr config dir> [--lang en,es] [--flaresolverr http://localhost:8191]`, run on
+the Prowlarr host: lists every **public** indexer definition you haven't added yet and whether its site opens from your
+network (OK), sits behind Cloudflare (CF, or FS-OK when FlareSolverr gets through), or fails (DNS, reset, HTTP error).
+Read-only. Then add the candidates and run Prowlarr's Test, which does a real search.
+
+Lessons learned:
+- Prowlarr only hands a request to FlareSolverr when it sees a Cloudflare page; a plain 403 or a redirect to a bot
+  check still fails with the FlareSolverr tag, and so does a domain your DNS doesn't resolve.
+- `Definitions/` keeps files Prowlarr's catalogue has since dropped; adding one gives the health error "Indexers have
+  no definition and will not work". Remove those.
+- Jackett indexer ids are case-sensitive in the Torznab URL (`aniRena`, not `anirena`).
+
 ## License
 
 MIT
