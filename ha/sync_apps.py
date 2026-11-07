@@ -17,6 +17,15 @@ NOISE = {"linuxserver", "lscr", "big", "bear", "app", "web", "server", "client",
 NAMES = {"qbittorrent": "qBittorrent", "gluetun": "Gluetun VPN", "jellyseerr": "Jellyseerr", "flaresolverr": "FlareSolverr",
          "uptimekuma": "Uptime Kuma", "uptime-kuma": "Uptime Kuma", "tvheadend": "tvheadend", "epg": "EPG", "ddns": "DDNS",
          "dnsmasq": "dnsmasq", "rclone": "rclone", "glances": "Glances", "ttyd": "ttyd", "myip": "MyIP"}
+# icons for buttons drawn with a state-icon (Material Design names, always available in HA); everything else: mdi:docker
+MDI = {"jellyfin": "mdi:jellyfish", "plex": "mdi:plex", "qbittorrent": "mdi:download", "transmission": "mdi:download",
+       "sonarr": "mdi:television-classic", "radarr": "mdi:movie-open", "lidarr": "mdi:music", "prowlarr": "mdi:magnify",
+       "jackett": "mdi:magnify", "jellyseerr": "mdi:movie-search", "overseerr": "mdi:movie-search", "immich": "mdi:image-multiple",
+       "portainer": "mdi:anchor", "syncthing": "mdi:sync", "tailscale": "mdi:vpn", "tailscaled": "mdi:vpn", "gluetun": "mdi:shield-lock",
+       "cloudflared": "mdi:cloud", "glances": "mdi:gauge", "uptimekuma": "mdi:heart-pulse", "kuma": "mdi:heart-pulse",
+       "ollama": "mdi:brain", "homeassistant": "mdi:home-assistant", "nginx": "mdi:web", "dnsmasq": "mdi:dns",
+       "flaresolverr": "mdi:fire", "stremio": "mdi:play-circle", "invidious": "mdi:youtube", "threadfin": "mdi:television",
+       "tvheadend": "mdi:antenna", "postgres": "mdi:database", "redis": "mdi:database", "mariadb": "mdi:database"}
 _icon_cache = {}
 
 
@@ -27,6 +36,11 @@ def icon_exists(slug):
         except Exception:
             _icon_cache[slug] = False
     return _icon_cache[slug]
+
+
+def mdi_for(container):
+    words = [w for w in re.split(r"[-_.]", container.lower()) if w]
+    return next((MDI[w] for w in reversed(words) if w in MDI), "mdi:docker")
 
 
 def guess(container):
@@ -69,7 +83,18 @@ def find(cards, test):
 
 
 def app_switch(card):
-    return card["elements"][0].get("entity")
+    """The container switch a button shows: the first element with an entity (None = a broken button)."""
+    return next((e.get("entity") for e in card.get("elements", []) if e.get("entity")), None)
+
+
+def set_icon(pair, image, mdi):
+    """Point a copied button at the new app's icon, whichever way the button draws it."""
+    for c in pair:
+        for e in c["elements"]:
+            if e.get("type") == "state-icon":
+                e["icon"] = mdi
+            elif e.get("type") == "image" or "image" in e:
+                e["image"] = image
 
 
 states = {s["entity_id"]: s for s in call(type="get_states")["result"]}
@@ -84,10 +109,14 @@ for srv in CFG["servers"]:
     stack = find(cards, lambda c: c.get("type") == "vertical-stack" and c.get("cards")
                  and all(x.get("type") == "horizontal-stack" for x in c["cards"])
                  and find(c["cards"], lambda y: y.get("type") == "picture-elements"))
-    table = find(cards, lambda c: c.get("type") == "markdown" and "{% set rows =" in c.get("content", ""))
+    table = find(cards, lambda c: c.get("type") == "custom:app-usage-card" and isinstance(c.get("rows"), list))         or find(cards, lambda c: c.get("type") == "markdown" and "{% set rows =" in c.get("content", ""))
     if not stack:
         print(srv["path"], ": no apps grid found, skipped"); continue
     pe = [c for line in stack["cards"] for c in line["cards"] if c.get("type") == "picture-elements"]
+    broken = [c for c in pe if not app_switch(c)]  # e.g. a button whose app element was deleted by hand
+    for c in broken[::2]:
+        print(f"{srv['path']}: - broken button (no switch)")
+    pe = [c for c in pe if app_switch(c)]
     shown = {app_switch(c) for c in pe}
     hidden = set(srv.get("extra_containers") or []) | set(srv.get("hidden") or [])
     host = PMAP.get((srv["portainer_host"], srv.get("portainer_endpoint", "local")), {})
@@ -108,10 +137,12 @@ for srv in CFG["servers"]:
     names = {}  # switch -> label shown on the button (new ones get theirs below)
     name_of = lambda pair: (names.get(app_switch(pair[0])) or states.get(app_switch(pair[0]), {}).get("attributes", {})
                             .get("friendly_name", app_switch(pair[0]))).casefold()
-    if not new and not gone and [name_of(p) for p in pairs] == sorted(name_of(p) for p in pairs):
+    if not new and not gone and not broken and [name_of(p) for p in pairs] == sorted(name_of(p) for p in pairs):
         print(srv["path"], ": up to date"); continue
     rows = None
-    if table:
+    if table and table.get("type") == "custom:app-usage-card":
+        rows = table["rows"]
+    elif table:
         m = re.search(r"\{% set rows = (\[.*?\]) %\}", table["content"], re.S)
         rows = json.loads(m.group(1)) if m else None
         if rows is not None and up:  # rows of deleted containers (their memory sensor is gone or unavailable)
@@ -120,11 +151,15 @@ for srv in CFG["servers"]:
         label, icon = guess(name)
         print(f"{srv['path']}: + {name} → «{label}» {icon.rsplit('/', 1)[-1]}")
         sw = m["switch"]
-        if APPLY and states.get(sw, {}).get("attributes", {}).get("friendly_name") != label:
-            call(type="config/entity_registry/update", entity_id=sw, name=label)
-        pair = copy.deepcopy(pairs[0])  # same look as the existing buttons
-        txt = json.dumps(pair).replace(app_switch(pairs[0][0]), sw).replace(pairs[0][0]["elements"][0]["image"], icon)
-        pair = json.loads(txt)
+        if APPLY and CFG.get("rename_switches") and states.get(sw, {}).get("attributes", {}).get("friendly_name") != label:
+            # name the container's device and clear the switch's own name: HA shows "<device> <entity name>", so naming
+            # the switch itself gives "Immich Immich"
+            dev = (call(type="config/entity_registry/get", entity_id=sw).get("result") or {}).get("device_id")
+            if dev:
+                call(type="config/device_registry/update", device_id=dev, name_by_user=label)
+            call(type="config/entity_registry/update", entity_id=sw, name="")
+        pair = json.loads(json.dumps(pairs[0]).replace(f'"{app_switch(pairs[0][0])}"', f'"{sw}"'))  # same look as the others
+        set_icon(pair, icon, mdi_for(name))
         menu = srv.get("app_menu")  # server name in the casaos_apps integration: ⋯ settings popup on CasaOS apps
         has_menu = bool(menu) and call(type="casaos_apps/app", server=menu, container=name).get("success")
         for c in pair:  # the copied button's ⋯ belongs to the other app
@@ -140,7 +175,7 @@ for srv in CFG["servers"]:
         if rows is not None and m.get("memory_usage"):
             rows.append({"n": label, "s": m.get("container_state", ""), "c": m.get("cpu_usage_total", ""), "m": m["memory_usage"]})
     pairs.sort(key=name_of)  # buttons in alphabetical order
-    if not new and not gone:
+    if not new and not gone and not broken:
         print(srv["path"], ": sorted alphabetically")
     # transparent filler keeps every button the same width on a short last line (hidden with the apps group)
     group_vis = [v for v in pe[0].get("visibility", []) if v.get("entity", "").startswith("input_boolean.")]
@@ -152,7 +187,9 @@ for srv in CFG["servers"]:
         lines.append({"type": "horizontal-stack",
                       "cards": [c for p in chunk for c in p] + [copy.deepcopy(blank) for _ in range(PER_LINE - len(chunk))]})
     stack["cards"] = lines
-    if rows is not None:
+    if rows is not None and table.get("type") == "custom:app-usage-card":
+        table["rows"] = rows
+    elif rows is not None:
         table["content"] = re.sub(r"\{% set rows = \[.*?\] %\}", "{% set rows = " + json.dumps(rows, ensure_ascii=False) + " %}",
                                   table["content"], count=1, flags=re.S)
     changed = True
