@@ -137,16 +137,21 @@ for srv in CFG["servers"]:
     names = {}  # switch -> label shown on the button (new ones get theirs below)
     name_of = lambda pair: (names.get(app_switch(pair[0])) or states.get(app_switch(pair[0]), {}).get("attributes", {})
                             .get("friendly_name", app_switch(pair[0]))).casefold()
-    if not new and not gone and not broken and [name_of(p) for p in pairs] == sorted(name_of(p) for p in pairs):
-        print(srv["path"], ": up to date"); continue
     rows = None
     if table and table.get("type") == "custom:app-usage-card":
-        rows = table["rows"]
+        rows = list(table["rows"])
     elif table:
         m = re.search(r"\{% set rows = (\[.*?\]) %\}", table["content"], re.S)
         rows = json.loads(m.group(1)) if m else None
-        if rows is not None and up:  # rows of deleted containers (their memory sensor is gone or unavailable)
-            rows = [r for r in rows if states.get(r.get("m"), {}).get("state") not in (None, "unavailable", "unknown")]
+    old_rows = copy.deepcopy(rows)
+    if rows is not None and up:  # rows of deleted containers (their memory sensor is gone or unavailable)
+        rows = [r for r in rows if states.get(r.get("m"), {}).get("state") not in (None, "unavailable", "unknown")]
+    for r in old_rows or []:
+        if r not in (rows or []):
+            print(f"{srv['path']}: - usage row {r.get('n')}")
+    if (not new and not gone and not broken and rows == old_rows
+            and [name_of(p) for p in pairs] == sorted(name_of(p) for p in pairs)):
+        print(srv["path"], ": up to date"); continue
     for name, m in new:
         label, icon = guess(name)
         print(f"{srv['path']}: + {name} → «{label}» {icon.rsplit('/', 1)[-1]}")
