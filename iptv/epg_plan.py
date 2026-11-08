@@ -28,6 +28,9 @@ for i in ids:
     if mjh:
         path, cid = mjh["site_id"].split("#", 1)
         extra[GH.format(path)][cid].append(i); continue
+    if x.get("epg") and x["epg"][0] == "i.mjh.nz":  # matched by stream id in build.py
+        path, cid = x["epg"][1].split("#", 1)
+        extra[GH.format(path)][cid].append(i); continue
     if x.get("epg") and x["epg"][0] == "epgshare01":
         fn, cid = x["epg"][1].split(":", 1)
         extra[ES.format(fn)][cid].append(i); continue

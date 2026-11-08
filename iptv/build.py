@@ -85,16 +85,31 @@ for x in sel:
     if hits and (hits[0][1] in (x["c"]["country"], "*") or x["c"]["country"] in ("US", "UK", "CA")):
         x["epg"] = ("epgshare01", f"{hits[0][0]}:{hits[0][2]}"); recovered += 1
 
+# free-streaming channels without an iptv-org guide: match the stream id (jmp2.uk/plu-<id>, stvp-<id>, rok-<id>) to i.mjh.nz
+MJH = {"plu": "PlutoTV", "stvp": "SamsungTVPlus", "rok": "Roku"}
+mjh_ids = {}
+for pre, name in MJH.items():
+    try:
+        with gzip.open(f"{E}/mjh_{name}.xml.gz") as fh:
+            mjh_ids[pre] = {m.decode() for m in re.findall(rb'<channel id="([^"]+)"', fh.read())}
+    except (OSError, EOFError) as e:
+        print("skip", name, e); mjh_ids[pre] = set()
+for x in sel:
+    m = re.search(r"jmp2\.uk/(plu|stvp|rok)-([^./?]+)", x["s"]["url"])
+    if not x["epg"] and m and m.group(2) in mjh_ids[m.group(1)]:
+        x["epg"] = ("i.mjh.nz", f"{MJH[m.group(1)]}/all#{m.group(2)}"); recovered += 1
+
 FAST = re.compile(r"jmp2\.uk|pluto|plex|roku|samsung|amagi|wurl|stitcher|tubi|xumo|frequency", re.I)
-MAJOR_FAST = re.compile(r"^(ABC News Live|NBC News NOW|CBS News 24/7|CBS News$|FOX Weather|Fox News|LiveNOW|Bloomberg|Reuters|Scripps News|NewsNation|Court TV|CNN|AccuWeather|Weather Channel|NFL Channel|MLB|NBA|NHL|PGA|Today All Day|Dateline|PBS)", re.I)
+MAJOR_FAST = re.compile(r"^(ABC News Live|NBC News NOW|CBS News 24/7|CBS News$|FOX Weather|Fox News|LiveNOW|Bloomberg|Reuters|Scripps News|NewsNation|Court TV|CNN|AccuWeather|Weather Channel|NFL Channel|MLB|NBA|NHL|PGA|Today All Day|Dateline|PBS|MTV)", re.I)
+NO_FAST = re.compile(r"tubi", re.I)  # free-streaming services left out; the rest must pass the soak test
 LOCAL_NEWS = re.compile(r"^(CBS|NBC|ABC|FOX) News (?!Live$|NOW|24/7)|^ABC News Live \d|^NBC \w+ News|News 12|Spectrum News|^FOX \d", re.I)
 def us_ok(x):
     n = x["c"]["name"]
     if LOCAL_NEWS.search(n): drop["noticias locales (EE. UU.)"] += 1; return False
-    if FAST.search(x["s"]["url"]) and not MAJOR_FAST.search(n): drop["EE. UU.: canal temático de streaming gratuito"] += 1; return False
+    if NO_FAST.search(x["s"]["url"]) and not MAJOR_FAST.search(n): drop["EE. UU.: canal temático de streaming gratuito (Tubi)"] += 1; return False
     return True
 sel = [x for x in sel if x["c"]["country"] != "US" or us_ok(x)]
-final = [x for x in sel if x["epg"] or x["c"]["country"] in KEEP_NO_EPG]
+final = [x for x in sel if x["epg"] or x["c"]["country"] in KEEP_NO_EPG or (x["c"]["country"] == "US" and FAST.search(x["s"]["url"]))]
 print("dropped:", dict(drop.most_common()))
 print("channels after rules:", len(sel), "| guide from iptv-org:", sum(1 for x in sel if x["g"]),
       "| recovered from epgshare01:", recovered)
