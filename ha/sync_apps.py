@@ -146,9 +146,19 @@ for srv in CFG["servers"]:
     old_rows = copy.deepcopy(rows)
     if rows is not None and up:  # rows of deleted containers (their memory sensor is gone or unavailable)
         rows = [r for r in rows if states.get(r.get("m"), {}).get("state") not in (None, "unavailable", "unknown")]
+    if rows is not None:  # kept buttons with no usage row (e.g. a container added by hand)
+        by_switch = {m["switch"]: m for m in host.values() if m.get("switch")}
+        for p in pairs:
+            m = by_switch.get(app_switch(p[0]), {})
+            if m.get("memory_usage") and m["memory_usage"] not in {r.get("m") for r in rows}:
+                rows.append({"n": states.get(m["switch"], {}).get("attributes", {}).get("friendly_name", m["switch"]),
+                             "s": m.get("container_state", ""), "c": m.get("cpu_usage_total", ""), "m": m["memory_usage"]})
     for r in old_rows or []:
         if r not in (rows or []):
             print(f"{srv['path']}: - usage row {r.get('n')}")
+    for r in rows or []:
+        if r not in (old_rows or []):
+            print(f"{srv['path']}: + usage row {r.get('n')}")
     if (not new and not gone and not broken and rows == old_rows
             and [name_of(p) for p in pairs] == sorted(name_of(p) for p in pairs)):
         print(srv["path"], ": up to date"); continue
