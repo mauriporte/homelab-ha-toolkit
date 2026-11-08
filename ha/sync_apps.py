@@ -166,10 +166,11 @@ for srv in CFG["servers"]:
             c["elements"] = [e for e in c["elements"] if e.get("type") != "custom:casaos-app-menu"]
             if has_menu:
                 c["elements"].append({"type": "custom:casaos-app-menu", "server": menu, "container": name, "style": {"top": "10%", "left": "88%"}})
-        for c in pair:  # stop confirmation names the new app
-            conf = c["elements"][0].get("tap_action", {}).get("confirmation")
-            if conf:
-                conf["text"] = re.sub(r"(¿?\S+ ).*?(\?)$", lambda x: x.group(1) + label + x.group(2), conf["text"])
+        for c in pair:  # stop confirmation names the new app (icon and label both ask)
+            for e in c["elements"]:
+                conf = e.get("tap_action", {}).get("confirmation")
+                if conf:
+                    conf["text"] = re.sub(r"(¿?\S+ ).*?(\?)$", lambda x: x.group(1) + label + x.group(2), conf["text"])
         pairs.append(pair)
         names[sw] = label
         if rows is not None and m.get("memory_usage"):
