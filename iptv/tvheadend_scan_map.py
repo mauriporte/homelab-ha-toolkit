@@ -20,7 +20,7 @@ while True:
     time.sleep(60)
 mx = post("/mpegts/mux/grid", limit=5000)["entries"]
 res = collections.Counter(m.get("scan_result") for m in mx)  # 1 = OK, 2 = FAIL
-svc = [s["uuid"] for s in post("/mpegts/service/grid", limit=5000)["entries"]]
+svc = [s["uuid"] for s in post("/mpegts/service/grid", limit=5000, hidemode="none")["entries"]]  # default hides some
 post("/service/mapper/save", node=json.dumps({"services": svc, "encrypted": False, "merge_same_name": False,
      "check_availability": False, "type_tags": False, "provider_tags": False, "network_tags": False}))
 time.sleep(20)

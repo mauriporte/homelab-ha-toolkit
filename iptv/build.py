@@ -21,7 +21,8 @@ BAD_WORDS = re.compile(r"tarot|vident|videnc|astrolog|horoscop|esoter|teletienda
                        r"\bads?\b|church|iglesia|gospel|evangel|cristian|christ|catolic|catholic|biblia|bible|"
                        r"\bfe\b|esperanza tv|enlace|3abn|daystar|\btbn\b|\bewtn\b|adventist|mision|ministr|pastor|"
                        r"diocesan|islam|quran|coran|jesus|jes[uú]s|\bdios\b|\bgod\b|\bgod tv\b|cristo|vatican|"
-                       r"\bsanta maria\b|maria vision|\bpray|oracion|salvation|worship|alabanza|\bsangat\b", re.I)
+                       r"\bsanta maria\b|maria vision|\bpray|oracion|salvation|worship|alabanza|\bsangat\b|"
+                       r"world harvest|\bfaith\b|\bshalom\b|hope channel|\bgod tv\b", re.I)
 
 def norm(s):
     s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode().lower()
