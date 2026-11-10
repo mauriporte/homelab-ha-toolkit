@@ -1,12 +1,13 @@
 # Wait for a tvheadend network scan to finish, then map every working service to a channel and report.
 # Usage: TVH_URL=http://host:9981 TVH_USER=admin TVH_PASS=... python tvheadend_scan_map.py [--start]
 #   --start  queues a full scan of the (first) network before waiting
-import json, os, sys, time, collections, requests
-from requests.auth import HTTPDigestAuth
+import json, os, sys, time, collections, urllib.parse, urllib.request
 
 B = os.environ.get("TVH_URL", "http://localhost:9981").rstrip("/") + "/api"
-A = HTTPDigestAuth(os.environ["TVH_USER"], os.environ["TVH_PASS"])
-post = lambda p, **d: requests.post(B + p, data=d, auth=A, timeout=120).json()
+pm = urllib.request.HTTPPasswordMgrWithDefaultRealm()
+pm.add_password(None, B, os.environ["TVH_USER"], os.environ["TVH_PASS"])
+op = urllib.request.build_opener(urllib.request.HTTPDigestAuthHandler(pm))  # stdlib only: runs on a bare ZimaOS python
+post = lambda p, **d: json.loads(op.open(B + p, urllib.parse.urlencode(d).encode(), timeout=120).read() or b"{}")
 
 net = post("/mpegts/network/grid")["entries"][0]
 if "--start" in sys.argv:

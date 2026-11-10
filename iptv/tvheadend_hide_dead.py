@@ -3,13 +3,14 @@
 # Usage: TVH_URL=http://host:9981 TVH_USER=admin TVH_PASS=... python tvheadend_hide_dead.py [--dry-run] [--limit 35]
 # Resumable: results go to tvh_start.jsonl; the disabled channels are listed in tvh_hidden.json
 # (re-enable one with /api/idnode/save node=[{"uuid": ..., "enabled": true}]).
-import json, os, sys, time, requests
-from requests.auth import HTTPDigestAuth
+import json, os, sys, time, urllib.parse, urllib.request
 
 H = os.environ.get("TVH_URL", "http://localhost:9981").rstrip("/")
-A = HTTPDigestAuth(os.environ["TVH_USER"], os.environ["TVH_PASS"])
+pm = urllib.request.HTTPPasswordMgrWithDefaultRealm()
+pm.add_password(None, H, os.environ["TVH_USER"], os.environ["TVH_PASS"])
+op = urllib.request.build_opener(urllib.request.HTTPDigestAuthHandler(pm))  # stdlib only: runs on a bare ZimaOS python
 LIMIT = float(sys.argv[sys.argv.index("--limit") + 1]) if "--limit" in sys.argv else 35
-post = lambda p, **d: requests.post(H + "/api" + p, data=d, auth=A, timeout=120).json()
+post = lambda p, **d: json.loads(op.open(H + "/api" + p, urllib.parse.urlencode(d).encode(), timeout=120).read() or b"{}")
 
 
 def first_ts(chunks, t0, limit, now=time.time):
@@ -25,9 +26,9 @@ def first_ts(chunks, t0, limit, now=time.time):
 def play(uuid):
     t0 = time.time()
     try:
-        with requests.get(f"{H}/stream/channel/{uuid}", auth=A, stream=True, timeout=(5, LIMIT)) as r:
-            return first_ts(r.iter_content(4096), t0, LIMIT)
-    except requests.RequestException:
+        with op.open(f"{H}/stream/channel/{uuid}", timeout=LIMIT) as r:
+            return first_ts(iter(lambda: r.read(4096), b""), t0, LIMIT)
+    except OSError:  # URLError, HTTPError and socket timeouts are all OSError
         return None
 
 

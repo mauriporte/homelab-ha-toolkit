@@ -2,13 +2,13 @@
 # "Start" = first 64 KB of video data received. User rule (17/10): > 5 s = removed.
 # A channel over the limit is retried once and only marked slow if both tries exceed it.
 # One channel at a time with a 2 s pause: several at once made Threadfin reject streams and even crash. Resumable: results appended to a .jsonl.
-import concurrent.futures as cf, json, os, re, sys, time, requests
+import concurrent.futures as cf, json, os, re, sys, time, urllib.request
 
 TF = os.environ.get("THREADFIN", "localhost:34400")  # host:port of Threadfin
 
 LIMIT, TIMEOUT, NEED = 5.0, 9.0, 64 * 1024
 OUT = "iptv_starttime.jsonl"
-m3u = requests.get(f"http://{TF}/m3u/threadfin.m3u", timeout=60).text
+m3u = urllib.request.urlopen(f"http://{TF}/m3u/threadfin.m3u", timeout=60).read().decode("utf-8")
 chans = re.findall(r'#EXTINF:[^\n]*?tvg-id="([^"]*)"[^\n]*,(.*)\n(http\S+)', m3u)
 # Threadfin may write its Docker-internal IP in the playlist (unless httpThreadfinDomain is set); use THREADFIN
 chans = [(t, n, re.sub(r"^http://[^/]+", f"http://{TF}", u)) for t, n, u in chans]
@@ -21,14 +21,14 @@ if os.path.exists(OUT):
 def start_time(url):
     t0 = time.monotonic(); got = 0
     try:
-        with requests.get(url, stream=True, timeout=TIMEOUT) as r:
-            for chunk in r.iter_content(8192):
+        with urllib.request.urlopen(url, timeout=TIMEOUT) as r:
+            for chunk in iter(lambda: r.read(8192), b""):
                 got += len(chunk)
                 if got >= NEED:
                     return round(time.monotonic() - t0, 2)
                 if time.monotonic() - t0 > TIMEOUT:
                     break
-    except requests.RequestException:
+    except OSError:  # URLError and socket timeouts
         pass
     return None  # no video within TIMEOUT
 

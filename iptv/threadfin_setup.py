@@ -1,12 +1,11 @@
 # Configure Threadfin through its websocket API (/data/), the same commands its web UI sends.
 # Order matters: guides first, then the playlist + filters, so channels whose tvg-id exists in a guide are
 # activated and mapped by Threadfin itself; channels left without a guide get Threadfin's dummy guide.
-import json, os, sys, time, websocket
+import base64, io, json, os, socket, sys, time
 
 TF = os.environ.get("THREADFIN", "localhost:34400")         # host:port of Threadfin
 GUIDES = os.environ.get("EPG_URLS", "http://localhost:3002/guide.xml,http://localhost:3003/extra.xml").split(",")
 
-URL = f"ws://{TF}/data/"
 GROUPS = [("España", "100"), ("Argentina", "300"), ("Reino Unido", "500"), ("EE. UU.", "600"),
           ("Otros · Noticias", "1000"), ("Otros · Deportes", "1100"), ("Otros · Cine", "1200"),
           ("Otros · Series", "1300"), ("Otros · Entretenimiento", "1400"), ("Otros · Documentales", "1500"),
@@ -14,13 +13,63 @@ GROUPS = [("España", "100"), ("Argentina", "300"), ("Reino Unido", "500"), ("EE
           ("Otros · General", "1900")]
 
 
+def frame(data, mask=None):
+    """One masked client text frame (RFC 6455)."""
+    mask = mask or os.urandom(4)
+    n = len(data)
+    head = bytes([0x81, 0x80 | n]) if n < 126 else bytes([0x81, 0xFE]) + n.to_bytes(2, "big") if n < 65536 \
+        else bytes([0x81, 0xFF]) + n.to_bytes(8, "big")
+    return head + mask + bytes(b ^ mask[i % 4] for i, b in enumerate(data))
+
+
+def read_msg(f):
+    """Read one whole data message (joins continuation frames, skips ping/pong)."""
+    out = b""
+    while True:
+        h = f.read(2)
+        if len(h) < 2:
+            raise SystemExit("websocket closed by Threadfin")
+        fin, op, n = h[0] & 0x80, h[0] & 0x0F, h[1] & 0x7F
+        if n >= 126:
+            n = int.from_bytes(f.read(2 if n == 126 else 8), "big")
+        mask = f.read(4) if h[1] & 0x80 else None
+        data = f.read(n)
+        if mask:
+            data = bytes(b ^ mask[i % 4] for i, b in enumerate(data))
+        if op == 8:
+            raise SystemExit("websocket closed by Threadfin")
+        if op in (9, 10):  # shortcut: pings are not answered, fine for one request per connection
+            continue
+        out += data
+        if fin:
+            return out
+
+
 def cmd(payload, wait=600):
-    ws = websocket.create_connection(URL, timeout=wait)
-    ws.send(json.dumps(payload)); r = json.loads(ws.recv()); ws.close()
+    # stdlib websocket (no `websocket` module needed): one connection per command
+    host, port = TF.rsplit(":", 1)
+    s = socket.create_connection((host, int(port)), timeout=wait)
+    try:
+        key = base64.b64encode(os.urandom(16)).decode()
+        s.sendall((f"GET /data/ HTTP/1.1\r\nHost: {TF}\r\nOrigin: http://{TF}\r\nUpgrade: websocket\r\n"
+                   f"Connection: Upgrade\r\nSec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n").encode())
+        f = s.makefile("rb")
+        status = f.readline()
+        if b" 101 " not in status:
+            raise SystemExit(f"websocket refused: {status.decode(errors='replace').strip()}")
+        while f.readline() not in (b"\r\n", b""):
+            pass
+        s.sendall(frame(json.dumps(payload).encode()))
+        r = json.loads(read_msg(f))
+    finally:
+        s.close()
     if not r.get("status", True) or r.get("error"):
         raise SystemExit(f"{payload['cmd']} failed: {r.get('error')}")
     return r
 
+
+assert read_msg(io.BytesIO(frame(b"hi"))) == b"hi"
+assert read_msg(io.BytesIO(frame(b"x" * 70000))) == b"x" * 70000  # 64-bit length path
 
 step = sys.argv[1] if len(sys.argv) > 1 else "all"
 
